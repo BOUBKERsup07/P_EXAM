@@ -1,0 +1,221 @@
+<div class="container-fluid p-0">
+  <!-- Header avec progression -->
+  <div class="exam-header text-white py-4 px-4 mb-4">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <h2 class="mb-0">{{ exam?.name || 'Examen' }}</h2>
+          <p class="mb-0 small" *ngIf="exam?.description">{{ exam?.description }}</p>
+        </div>
+        <div class="col-md-6 text-md-end">
+          <div class="d-flex justify-content-md-end align-items-center gap-3">
+            <!-- Mode plein écran -->
+            <button class="btn btn-light btn-sm rounded-circle" (click)="toggleFullscreen()">
+              <i class="bi" [ngClass]="isFullscreen ? 'bi-fullscreen-exit' : 'bi-fullscreen'"></i>
+            </button>
+            
+            <!-- Progression -->
+            <div class="progress-info" *ngIf="!loading && !error && !examCompleted && currentQuestion">
+              <div class="d-flex align-items-center gap-3">
+                <div class="question-counter">
+                  <span class="badge bg-white text-dark p-2 shadow-sm">
+                    <i class="bi bi-question-circle me-1"></i>
+                    Question {{ currentQuestionIndex + 1 }} / {{ exam?.questions?.length || 0 }}
+                  </span>
+                </div>
+                <div class="timer" [ngClass]="{'danger': timeLeft < 30, 'warning': timeLeft >= 30 && timeLeft < 60}">
+                  <i class="bi bi-clock me-1"></i>
+                  {{ timeLeft }}s
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mb-5">
+    <!-- État de chargement -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Chargement...</span>
+      </div>
+      <p class="mt-3 text-muted">Chargement de l'examen...</p>
+    </div>
+
+    <!-- Message d'erreur -->
+    <div *ngIf="error" class="alert alert-danger" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      {{ error }}
+    </div>
+
+    <!-- Contenu de l'examen -->
+    <div *ngIf="!loading && !error && !examCompleted && currentQuestion" class="card shadow-sm">
+      <!-- Barre de progression -->
+      <div class="progress">
+        <div class="progress-bar" role="progressbar" 
+          [style.width]="((currentQuestionIndex + 1) / (exam?.questions?.length || 1)) * 100 + '%'">
+        </div>
+      </div>
+
+      <div class="card-body">
+        <!-- Texte de la question -->
+        <h3 class="card-title">{{ currentQuestion.text }}</h3>
+        
+        <!-- Image de la question (si disponible) -->
+        <div *ngIf="currentQuestion.imageUrl" class="text-center mb-4">
+          <img [src]="currentQuestion.imageUrl" alt="Image de la question" class="img-fluid rounded shadow-sm" 
+            style="max-height: 300px;">
+        </div>
+
+        <!-- Questions à choix multiples -->
+        <div *ngIf="currentQuestion.type === 'MULTIPLE_CHOICE'" class="mb-4">
+          <div class="list-group">
+            <label *ngFor="let answer of currentQuestion.answers; let i = index" 
+              class="list-group-item list-group-item-action d-flex align-items-center"
+              [class.active]="selectedAnswers[currentQuestion.id || 0] === answer.id.toString()">
+              <input type="radio" 
+                [id]="'choice-' + i" 
+                [name]="'question-' + currentQuestion.id"
+                [value]="answer.id" 
+                [(ngModel)]="selectedAnswers[currentQuestion.id || 0]"
+                class="form-check-input me-3">
+              <span>{{ answer.text }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Questions à réponse directe -->
+        <div *ngIf="currentQuestion.type === 'DIRECT_ANSWER'" class="mb-4">
+          <div class="form-floating">
+            <input type="text" 
+              class="form-control" 
+              id="directAnswer"
+              placeholder="Votre réponse"
+              [(ngModel)]="selectedAnswers[currentQuestion.id || 0]">
+            <label for="directAnswer">Votre réponse</label>
+          </div>
+        </div>
+
+        <!-- Boutons de navigation -->
+        <div class="d-flex justify-content-between mt-5">
+          <button *ngIf="!isFirstQuestion" (click)="previousQuestion()" 
+            class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i> Question précédente
+          </button>
+          <div *ngIf="isFirstQuestion"></div>
+          
+          <button (click)="isLastQuestion ? submitExam() : nextQuestion()" 
+            class="btn" 
+            [ngClass]="isLastQuestion ? 'btn-success' : 'btn-primary'">
+            {{ isLastQuestion ? 'Terminer l\'examen' : 'Question suivante' }}
+            <i class="bi ms-2" [ngClass]="isLastQuestion ? 'bi-check-lg' : 'bi-arrow-right'"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Résultats de l'examen -->
+    <div *ngIf="examCompleted && examResult" class="card shadow-sm">
+      <div class="card-header" [ngClass]="examResult.score >= 70 ? 'bg-success' : examResult.score >= 50 ? 'bg-warning' : 'bg-danger'">
+        <div class="d-flex justify-content-between align-items-center text-white">
+          <h3 class="mb-0"><i class="bi bi-trophy me-2"></i> Examen terminé !</h3>
+          <span class="badge bg-white text-dark fs-5 px-3 py-2 rounded-pill">
+            {{ examResult.score }}%
+          </span>
+        </div>
+      </div>
+      <div class="card-body p-4">
+        <!-- Résumé visuel -->
+        <div class="row mb-5">
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+              <div class="card-body text-center">
+                <div class="display-1 mb-2 text-primary">
+                  <i class="bi bi-award"></i>
+                </div>
+                <h1 class="display-4 mb-0 fw-bold">{{ examResult.score }}%</h1>
+                <p class="text-muted">Score final</p>
+                <div class="progress mt-2" style="height: 10px;">
+                  <div class="progress-bar" 
+                       [ngClass]="examResult.score >= 70 ? 'bg-success' : examResult.score >= 50 ? 'bg-warning' : 'bg-danger'" 
+                       [style.width.%]="examResult.score"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+              <div class="card-body text-center">
+                <div class="display-1 mb-2 text-info">
+                  <i class="bi bi-clock-history"></i>
+                </div>
+                <h1 class="display-4 mb-0 fw-bold">{{ examResult.completionDate | date:'HH:mm:ss' }}</h1>
+                <p class="text-muted">Heure de fin</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+              <div class="card-body text-center">
+                <div class="display-1 mb-2 text-success">
+                  <i class="bi bi-check-circle"></i>
+                </div>
+                <h1 class="display-4 mb-0 fw-bold">
+                  {{ getCorrectAnswersCount() }} / {{ examResult.answers.length || 0 }}
+                </h1>
+                <p class="text-muted">Réponses correctes</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Détails des réponses -->
+        <h4 class="mb-3 d-flex align-items-center">
+          <i class="bi bi-list-check me-2 text-primary"></i>
+          Détails des réponses
+        </h4>
+        <div class="table-responsive">
+          <table class="table table-striped table-hover border">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center" style="width: 60px;">#</th>
+                <th>Question</th>
+                <th>Votre réponse</th>
+                <th class="text-center" style="width: 100px;">Résultat</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let answer of examResult.answers; let i = index" 
+                  [ngClass]="{'table-success': answer.isCorrect, 'table-danger': !answer.isCorrect}">
+                <td class="text-center fw-bold">{{ i + 1 }}</td>
+                <td>{{ answer.questionText || 'Question ' + (i + 1) }}</td>
+                <td>
+                  <div>{{ answer.answer }}</div>
+                  <div *ngIf="!answer.isCorrect" class="text-danger small">
+                    Réponse correcte: {{ answer.correctAnswer }}
+                  </div>
+                </td>
+                <td class="text-center">
+                  <span class="badge rounded-pill px-3 py-2" 
+                        [ngClass]="answer.isCorrect ? 'bg-success' : 'bg-danger'">
+                    <i class="bi" [ngClass]="answer.isCorrect ? 'bi-check-circle' : 'bi-x-circle'"></i>
+                    {{ answer.isCorrect ? 'Correct' : 'Incorrect' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="d-flex justify-content-center mt-5">
+          <button (click)="navigateToDashboard()" class="btn btn-primary btn-lg px-4 py-2">
+            <i class="bi bi-house me-2"></i> Retour au tableau de bord
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

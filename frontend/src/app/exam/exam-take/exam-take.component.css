@@ -1,0 +1,212 @@
+/* Styles généraux */
+body {
+  background-color: #f8f9fa;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+}
+
+/* En-tête de l'examen */
+.exam-header {
+  background: linear-gradient(135deg, #3a7bd5 0%, #00d2ff 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 0 0 12px 12px;
+}
+
+.exam-header h2 {
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+/* Bouton plein écran */
+.btn-light.rounded-circle {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.btn-light.rounded-circle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Compteur de temps */
+.timer {
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 20px;
+  background-color: rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+}
+
+.timer.warning {
+  background-color: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.timer.danger {
+  background-color: rgba(220, 53, 69, 0.2);
+  color: #dc3545;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+/* Carte de question */
+.card {
+  border: none;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.card-title {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 1.5rem;
+}
+
+/* Barre de progression */
+.progress {
+  height: 8px;
+  border-radius: 0;
+  background-color: #e9ecef;
+}
+
+.progress-bar {
+  background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
+  transition: width 0.6s ease;
+}
+
+/* Options de réponse */
+.list-group-item {
+  border-radius: 8px !important;
+  margin-bottom: 8px;
+  border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.list-group-item:hover {
+  border-color: #3a7bd5;
+  background-color: rgba(58, 123, 213, 0.05);
+}
+
+.list-group-item.active {
+  background-color: #3a7bd5;
+  border-color: #3a7bd5;
+}
+
+.form-check-input:checked {
+  background-color: #3a7bd5;
+  border-color: #3a7bd5;
+}
+
+/* Boutons de navigation */
+.btn-outline-secondary {
+  border-radius: 8px;
+  padding: 8px 20px;
+}
+
+.btn-primary, .btn-success {
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3a7bd5 0%, #00d2ff 100%);
+  border: none;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(58, 123, 213, 0.3);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  border: none;
+}
+
+.btn-success:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
+}
+
+/* Section résultats */
+.card-header {
+  border-radius: 12px 12px 0 0 !important;
+}
+
+.display-1 {
+  font-size: 3.5rem;
+}
+
+.table th {
+  font-weight: 600;
+  color: #495057;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .exam-header .text-md-end {
+    text-align: left !important;
+    margin-top: 1rem;
+  }
+  
+  .d-flex.justify-content-between {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .d-flex.justify-content-between button {
+    width: 100%;
+  }
+  
+  .progress-info {
+    margin-top: 1rem;
+  }
+}
+
+/* Animation pour le spinner */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinner-border {
+  animation: spin 0.75s linear infinite;
+}
+
+/* Style pour les images des questions */
+.img-fluid {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.img-fluid:hover {
+  transform: scale(1.02);
+}
+
+/* Style pour les badges de résultat */
+.badge.bg-white {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

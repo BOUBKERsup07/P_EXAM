@@ -1,0 +1,51 @@
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Liste des examens</h2>
+    <button class="btn btn-primary" routerLink="/professor/exams/new">
+      <i class="bi bi-plus-circle"></i> Créer un nouvel examen
+    </button>
+  </div>
+
+  <div *ngIf="errorMessage" class="alert alert-danger" role="alert">
+    {{ errorMessage }}
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Titre</th>
+          <th>Description</th>
+          <th>Nombre de questions</th>
+          <th>Date de création</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let exam of exams">
+          <td>{{ exam.title }}</td>
+          <td>{{ exam.description }}</td>
+          <td>{{ exam.questions.length || 0 }}</td>
+          <td>{{ exam.createdAt | date:'medium' }}</td>
+          <td>
+            <div class="btn-group" role="group">
+              <button class="btn btn-sm btn-outline-primary" (click)="viewExam(exam.id)" title="Voir l'examen">
+                <i class="bi bi-eye"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-warning" (click)="editExam(exam.id)" title="Modifier l'examen">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" (click)="deleteExam(exam.id)" title="Supprimer l'examen">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="exams.length === 0" class="alert alert-info">
+    Aucun examen n'a été créé pour le moment.
+  </div>
+</div>

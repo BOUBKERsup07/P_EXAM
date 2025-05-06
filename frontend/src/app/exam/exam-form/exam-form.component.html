@@ -1,0 +1,182 @@
+<div class="container-fluid p-4 bg-light">
+  <div class="card shadow">
+    <div class="card-header bg-primary text-white">
+      <h3>{{ isEditMode ? 'Modifier l\'examen' : 'Créer un nouvel examen' }}</h3>
+    </div>
+    <div class="card-body">
+      <form [formGroup]="examForm" (ngSubmit)="onSubmit()">
+        <!-- Informations de base de l'examen -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <div class="form-group mb-3">
+              <label for="title" class="form-label fw-bold">Titre de l'examen*</label>
+              <input type="text" id="title" formControlName="title" class="form-control" 
+                placeholder="Ex: Mathématiques Avancées" required>
+              <div *ngIf="examForm.get('title')?.invalid && examForm.get('title')?.touched" class="text-danger mt-1">
+                Le titre est obligatoire
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group mb-3">
+              <label for="accessCode" class="form-label fw-bold">Code d'accès*</label>
+              <div class="input-group">
+                <input type="text" id="accessCode" formControlName="accessCode" class="form-control" 
+                  placeholder="Ex: MATH2024" required>
+                <button type="button" class="btn btn-outline-secondary" (click)="generateAccessCode()">
+                  <i class="bi bi-key"></i> Générer
+                </button>
+              </div>
+              <div *ngIf="examForm.get('accessCode')?.invalid && examForm.get('accessCode')?.touched" class="text-danger mt-1">
+                Le code d'accès est obligatoire
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group mb-4">
+          <label for="description" class="form-label fw-bold">Description</label>
+          <textarea id="description" formControlName="description" class="form-control" rows="3"
+            placeholder="Décrivez le contenu et l'objectif de cet examen"></textarea>
+        </div>
+
+        <!-- Section des questions -->
+        <div formArrayName="questions" class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="card-title"><i class="bi bi-list-check"></i> Questions</h4>
+            <button type="button" (click)="addQuestion()" class="btn btn-success">
+              <i class="bi bi-plus-circle"></i> Ajouter une question
+            </button>
+          </div>
+
+          <div *ngIf="questions.length === 0" class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Aucune question ajoutée. Utilisez le bouton ci-dessus pour ajouter des questions.
+          </div>
+
+          <!-- Liste des questions -->
+          <div *ngFor="let question of questions.controls; let i = index" [formGroupName]="i"
+            class="card mb-4 border-left-primary">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">Question {{ i + 1 }}</h5>
+              <button type="button" (click)="removeQuestion(i)" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i> Supprimer
+              </button>
+            </div>
+
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-md-8">
+                  <div class="form-group">
+                    <label [for]="'text-' + i" class="form-label">Texte de la question*</label>
+                    <input type="text" [id]="'text-' + i" formControlName="text" class="form-control"
+                      placeholder="Ex: Quelle est la dérivée de ln(x)?" required>
+                    <div *ngIf="question.get('text')?.invalid && question.get('text')?.touched" class="text-danger mt-1">
+                      Le texte de la question est obligatoire
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-group">
+                    <label [for]="'type-' + i" class="form-label">Type de question*</label>
+                    <select [id]="'type-' + i" formControlName="type" class="form-select" required>
+                      <option value="MULTIPLE_CHOICE">Choix multiple (QCM)</option>
+                      <option value="DIRECT_ANSWER">Réponse directe</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <div class="form-group">
+                    <label [for]="'timeLimit-' + i" class="form-label">Temps limite (secondes)</label>
+                    <input type="number" [id]="'timeLimit-' + i" formControlName="timeLimit" class="form-control"
+                      placeholder="Ex: 60" min="10">
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group">
+                    <label [for]="'imageUrl-' + i" class="form-label">URL de l'image (optionnel)</label>
+                    <div class="input-group">
+                      <input type="text" [id]="'imageUrl-' + i" formControlName="imageUrl" class="form-control"
+                        placeholder="https://exemple.com/image.jpg">
+                      <button type="button" class="btn btn-outline-secondary">
+                        <i class="bi bi-upload"></i> Télécharger
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section des réponses pour QCM -->
+              <div *ngIf="question.get('type')?.value === 'MULTIPLE_CHOICE'" class="mt-4">
+                <div formArrayName="answers">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="card-subtitle"><i class="bi bi-check2-square"></i> Options de réponse</h6>
+                    <button type="button" (click)="addAnswer(i)" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-plus"></i> Ajouter une option
+                    </button>
+                  </div>
+
+                  <div *ngIf="getAnswers(i).length === 0" class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> Ajoutez au moins deux options de réponse.
+                  </div>
+
+                  <div *ngFor="let answer of getAnswers(i).controls; let j = index" [formGroupName]="j"
+                    class="card mb-2 border-left-info">
+                    <div class="card-body py-2">
+                      <div class="row align-items-center">
+                        <div class="col-md-8">
+                          <div class="input-group">
+                            <input type="text" formControlName="text" class="form-control"
+                              placeholder="Texte de l'option" required>
+                          </div>
+                        </div>
+                        <div class="col-md-3">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" formControlName="isCorrect"
+                              [id]="'correct-' + i + '-' + j">
+                            <label class="form-check-label" [for]="'correct-' + i + '-' + j">
+                              Réponse correcte
+                            </label>
+                          </div>
+                        </div>
+                        <div class="col-md-1 text-end">
+                          <button type="button" (click)="removeAnswer(i, j)" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-x"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Réponse correcte pour les questions à réponse directe -->
+              <div *ngIf="question.get('type')?.value === 'DIRECT_ANSWER'" class="mt-4">
+                <div class="form-group">
+                  <label [for]="'correctAnswer-' + i" class="form-label">Réponse correcte*</label>
+                  <input type="text" [id]="'correctAnswer-' + i" formControlName="correctAnswer" class="form-control"
+                    placeholder="Ex: 1/x" required>
+                  <div *ngIf="question.get('correctAnswer')?.invalid && question.get('correctAnswer')?.touched" class="text-danger mt-1">
+                    La réponse correcte est obligatoire
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="d-flex justify-content-end mt-4">
+          <button type="button" (click)="onCancel()" class="btn btn-secondary me-2">
+            <i class="bi bi-x-circle"></i> Annuler
+          </button>
+          <button type="submit" [disabled]="examForm.invalid || questions.length === 0" class="btn btn-primary">
+            <i class="bi bi-save"></i> {{ isEditMode ? 'Mettre à jour' : 'Créer l\'examen' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,83 @@
+<div class="container mt-4">
+  <h2 class="mb-4">Student Dashboard</h2>
+
+  <!-- Available Exams -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h4>Available Exams</h4>
+    </div>
+    <div class="card-body">
+      <div *ngIf="loading" class="text-center">
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+
+      <div *ngIf="!loading && availableExams.length === 0" class="alert alert-info">
+        No exams available at the moment.
+      </div>
+
+      <div *ngIf="!loading && availableExams.length > 0" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Description</th>
+              <th>Duration</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let exam of availableExams">
+              <td>{{ exam.name }}</td>
+              <td>{{ exam.description }}</td>
+              <td>{{ (exam.questions || []).length }} questions</td>
+              <td>
+                <button class="btn btn-primary" [routerLink]="['/student/exams', exam.id, 'take']">
+                  Start Exam
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Completed Exams -->
+  <div class="card">
+    <div class="card-header">
+      <h4>Completed Exams</h4>
+    </div>
+    <div class="card-body">
+      <div *ngIf="completedExams.length === 0" class="alert alert-info">
+        You haven't completed any exams yet.
+      </div>
+
+      <div *ngIf="completedExams.length > 0" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Score</th>
+              <th>Completion Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let exam of completedExams">
+              <td>{{ exam.name }}</td>
+              <td>{{ exam.score }}%</td>
+              <td>{{ exam.completionDate | date:'medium' }}</td>
+              <td>
+                <button class="btn btn-info" [routerLink]="['/student/exams', exam.id, 'results']">
+                  View Results
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div> 

@@ -1,0 +1,319 @@
+package com.exam.service;
+
+import com.exam.model.*;
+import com.exam.repository.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+public class ExamService {
+
+    @Autowired
+    private ExamRepository examRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private AnswerRepository answerRepository;
+
+    @Autowired
+    private StudentExamRepository studentExamRepository;
+
+    @Autowired
+    private StudentAnswerRepository studentAnswerRepository;
+
+    public List<Exam> getAllExams() {
+        return examRepository.findAll();
+    }
+
+    public List<Exam> getExamsByProfessor(Professor professor) {
+        List<Exam> exams = examRepository.findByProfessor(professor);
+        // Charger les questions et leurs réponses pour chaque examen
+        exams.forEach(exam -> {
+            if (exam.getQuestions() != null) {
+                exam.getQuestions().forEach(question -> {
+                    if (question.getAnswers() != null) {
+                        question.getAnswers().size(); // Force le chargement des réponses
+                    }
+                });
+            }
+        });
+        return exams;
+    }
+
+    public Optional<Exam> getExamById(Long id) {
+        return examRepository.findById(id);
+    }
+
+    @Transactional
+    public Exam createExam(Exam exam) {
+        // Generate a unique access code
+        exam.setAccessCode(UUID.randomUUID().toString());
+        
+        // Sauvegarder l'examen d'abord pour s'assurer qu'il a un ID
+        exam = examRepository.saveAndFlush(exam);
+        
+        // Créer une nouvelle liste pour les questions
+        List<Question> newQuestions = new ArrayList<>();
+        
+        // Ajouter les questions et réponses
+        if (exam.getQuestions() != null && !exam.getQuestions().isEmpty()) {
+            for (Question question : exam.getQuestions()) {
+                // Définir des valeurs par défaut pour tous les champs obligatoires si null
+                if (question.getDifficultyLevel() == null) {
+                    question.setDifficultyLevel(Question.DifficultyLevel.EASY);
+                }
+                
+                if (question.getPoints() == null) {
+                    question.setPoints(1);
+                }
+                
+                if (question.getTimeLimit() == null) {
+                    question.setTimeLimit(60); // 60 secondes par défaut
+                }
+                
+                if (question.getType() == null) {
+                    question.setType(Question.QuestionType.MULTIPLE_CHOICE);
+                }
+                
+                // Créer une nouvelle question pour éviter les problèmes de référence
+                Question newQuestion = new Question();
+                newQuestion.setText(question.getText());
+                newQuestion.setImageUrl(question.getImageUrl());
+                newQuestion.setTimeLimit(question.getTimeLimit());
+                newQuestion.setType(question.getType());
+                newQuestion.setDifficultyLevel(question.getDifficultyLevel());
+                newQuestion.setExplanation(question.getExplanation());
+                newQuestion.setPoints(question.getPoints());
+                newQuestion.setExam(exam);
+                
+                // Sauvegarder la question pour obtenir son ID
+                Question savedQuestion = questionRepository.saveAndFlush(newQuestion);
+                
+                // Ajouter à la liste des nouvelles questions
+                newQuestions.add(savedQuestion);
+                
+                // Traiter les réponses
+                List<Answer> newAnswers = new ArrayList<>();
+                
+                // Traitement spécial pour les questions à réponse directe
+                if (question.getType() == Question.QuestionType.DIRECT_ANSWER) {
+                    // Pour les questions à réponse directe, s'assurer qu'il y a au moins une réponse
+                    Answer newAnswer = new Answer();
+                    
+                    // Si aucune réponse n'est fournie ou si la réponse est vide, créer une réponse par défaut
+                    if (question.getAnswers() == null || question.getAnswers().isEmpty() ||
+                        question.getAnswers().get(0).getText() == null || 
+                        question.getAnswers().get(0).getText().trim().isEmpty()) {
+                        newAnswer.setText("Réponse directe");
+                    } else {
+                        newAnswer.setText(question.getAnswers().get(0).getText());
+                    }
+                    
+                    newAnswer.setIsCorrect(true); // La réponse directe est toujours correcte
+                    newAnswer.setQuestion(savedQuestion);
+                    newAnswers.add(newAnswer);
+                } else if (question.getAnswers() != null && !question.getAnswers().isEmpty()) {
+                    // Traitement normal pour les questions à choix multiple
+                    int optionCount = 1;
+                    for (Answer answer : question.getAnswers()) {
+                        Answer newAnswer = new Answer();
+                        
+                        // Vérifier si le texte de la réponse est null ou vide
+                        if (answer.getText() == null || answer.getText().trim().isEmpty()) {
+                            newAnswer.setText("Option " + optionCount); // Valeur par défaut pour les QCM
+                        } else {
+                            newAnswer.setText(answer.getText());
+                        }
+                        
+                        newAnswer.setIsCorrect(answer.getIsCorrect());
+                        newAnswer.setQuestion(savedQuestion);
+                        newAnswers.add(newAnswer);
+                        optionCount++;
+                    }
+                }
+                
+                // Sauvegarder toutes les réponses en une seule fois (seulement si la liste n'est pas vide)
+                if (!newAnswers.isEmpty()) {
+                    answerRepository.saveAll(newAnswers);
+                }
+            }
+        }
+        
+        // Mettre à jour la liste des questions de l'examen
+        exam.setQuestions(newQuestions);
+        
+        // Sauvegarder et retourner l'examen mis à jour
+        return examRepository.save(exam);
+    }
+
+    @Transactional
+    public Exam updateExam(Long id, Exam examDetails) {
+        Exam exam = examRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Exam not found"));
+
+        exam.setName(examDetails.getName());
+        exam.setDescription(examDetails.getDescription());
+        exam.setAccessCode(examDetails.getAccessCode());
+        
+        // Supprimer les questions existantes et leurs réponses
+        if (exam.getQuestions() != null) {
+            exam.getQuestions().forEach(question -> {
+                if (question.getAnswers() != null) {
+                    answerRepository.deleteAll(question.getAnswers());
+                }
+            });
+            questionRepository.deleteAll(exam.getQuestions());
+            exam.getQuestions().clear();
+        }
+        
+        // Sauvegarder l'examen d'abord pour s'assurer qu'il a un ID
+        exam = examRepository.saveAndFlush(exam);
+        
+        // Créer une nouvelle liste pour les questions
+        List<Question> newQuestions = new ArrayList<>();
+        
+        // Ajouter les nouvelles questions et réponses
+        if (examDetails.getQuestions() != null) {
+            for (Question question : examDetails.getQuestions()) {
+                // Définir des valeurs par défaut pour tous les champs obligatoires si null
+                if (question.getDifficultyLevel() == null) {
+                    question.setDifficultyLevel(Question.DifficultyLevel.EASY);
+                }
+                
+                if (question.getPoints() == null) {
+                    question.setPoints(1);
+                }
+                
+                if (question.getTimeLimit() == null) {
+                    question.setTimeLimit(60); // 60 secondes par défaut
+                }
+                
+                if (question.getType() == null) {
+                    question.setType(Question.QuestionType.MULTIPLE_CHOICE);
+                }
+                
+                // Créer une nouvelle question pour éviter les problèmes de référence
+                Question newQuestion = new Question();
+                newQuestion.setText(question.getText());
+                newQuestion.setImageUrl(question.getImageUrl());
+                newQuestion.setTimeLimit(question.getTimeLimit());
+                newQuestion.setType(question.getType());
+                newQuestion.setDifficultyLevel(question.getDifficultyLevel());
+                newQuestion.setExplanation(question.getExplanation());
+                newQuestion.setPoints(question.getPoints());
+                newQuestion.setExam(exam);
+                
+                // Sauvegarder la question pour obtenir son ID
+                Question savedQuestion = questionRepository.saveAndFlush(newQuestion);
+                
+                // Ajouter à la liste des nouvelles questions
+                newQuestions.add(savedQuestion);
+                
+                // Traiter les réponses
+                List<Answer> newAnswers = new ArrayList<>();
+                
+                // Traitement spécial pour les questions à réponse directe
+                if (question.getType() == Question.QuestionType.DIRECT_ANSWER) {
+                    // Pour les questions à réponse directe, s'assurer qu'il y a au moins une réponse
+                    Answer newAnswer = new Answer();
+                    
+                    // Si aucune réponse n'est fournie ou si la réponse est vide, créer une réponse par défaut
+                    if (question.getAnswers() == null || question.getAnswers().isEmpty() ||
+                        question.getAnswers().get(0).getText() == null || 
+                        question.getAnswers().get(0).getText().trim().isEmpty()) {
+                        newAnswer.setText("Réponse directe");
+                    } else {
+                        newAnswer.setText(question.getAnswers().get(0).getText());
+                    }
+                    
+                    newAnswer.setIsCorrect(true); // La réponse directe est toujours correcte
+                    newAnswer.setQuestion(savedQuestion);
+                    newAnswers.add(newAnswer);
+                } else if (question.getAnswers() != null && !question.getAnswers().isEmpty()) {
+                    // Traitement normal pour les questions à choix multiple
+                    int optionCount = 1;
+                    for (Answer answer : question.getAnswers()) {
+                        Answer newAnswer = new Answer();
+                        
+                        // Vérifier si le texte de la réponse est null ou vide
+                        if (answer.getText() == null || answer.getText().trim().isEmpty()) {
+                            newAnswer.setText("Option " + optionCount); // Valeur par défaut pour les QCM
+                        } else {
+                            newAnswer.setText(answer.getText());
+                        }
+                        
+                        newAnswer.setIsCorrect(answer.getIsCorrect());
+                        newAnswer.setQuestion(savedQuestion);
+                        newAnswers.add(newAnswer);
+                        optionCount++;
+                    }
+                }
+                
+                // Sauvegarder toutes les réponses en une seule fois (seulement si la liste n'est pas vide)
+                if (!newAnswers.isEmpty()) {
+                    answerRepository.saveAll(newAnswers);
+                }
+            }
+        }
+        
+        // Mettre à jour la liste des questions de l'examen
+        exam.setQuestions(newQuestions);
+        
+        // Sauvegarder et retourner l'examen mis à jour
+        return examRepository.save(exam);
+    }
+
+    public void deleteExam(Long id) {
+        Exam exam = examRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Exam not found"));
+        examRepository.delete(exam);
+    }
+
+    @Transactional
+    public StudentAnswer submitAnswer(Long studentExamId, Long questionId, Long selectedAnswerId, String answerText) {
+        StudentExam studentExam = studentExamRepository.findById(studentExamId)
+                .orElseThrow(() -> new RuntimeException("Student exam not found"));
+
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new RuntimeException("Question not found"));
+
+        StudentAnswer studentAnswer = new StudentAnswer();
+        studentAnswer.setStudentExam(studentExam);
+        studentAnswer.setQuestion(question);
+
+        if (question.getType() == Question.QuestionType.MULTIPLE_CHOICE) {
+            Answer selectedAnswer = answerRepository.findById(selectedAnswerId)
+                    .orElseThrow(() -> new RuntimeException("Answer not found"));
+            studentAnswer.setSelectedAnswer(selectedAnswer);
+            studentAnswer.setIsCorrect(selectedAnswer.getIsCorrect());
+        } else {
+            studentAnswer.setAnswerText(answerText);
+            studentAnswer.setIsCorrect(answerText.equals(question.getAnswers().get(0).getText()));
+        }
+
+        studentAnswer = studentAnswerRepository.save(studentAnswer);
+
+        // Update student exam score
+        updateStudentExamScore(studentExam);
+
+        return studentAnswer;
+    }
+
+    private void updateStudentExamScore(StudentExam studentExam) {
+        List<StudentAnswer> answers = studentAnswerRepository.findByStudentExam(studentExam);
+        int totalQuestions = studentExam.getExam().getQuestions().size();
+        int correctAnswers = (int) answers.stream().filter(StudentAnswer::getIsCorrect).count();
+        
+        int score = (int) ((double) correctAnswers / totalQuestions * 100);
+        studentExam.setScore(score);
+        studentExamRepository.save(studentExam);
+    }
+}

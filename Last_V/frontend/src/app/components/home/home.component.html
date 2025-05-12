@@ -1,0 +1,103 @@
+<div class="home-container">
+  <!-- Hero Section -->
+  <div class="hero-section" [class.active]="isHeroVisible">
+    <div class="content">
+      <h1>Bienvenue sur <span class="highlight">Exam Platform</span></h1>
+      <p class="description">
+        Une plateforme innovante pour la gestion et la passation d'examens en ligne.
+        Simplifiez la création d'examens pour les professeurs et offrez une expérience fluide aux étudiants.
+      </p>
+      <div class="cta-buttons">
+        <button class="btn btn-primary" (click)="navigateToLogin()">
+          <i class="fas fa-sign-in-alt"></i> Se connecter
+        </button>
+        <button class="btn btn-secondary" (click)="navigateToRegister()">
+          <i class="fas fa-user-plus"></i> S'inscrire
+        </button>
+        <button class="btn btn-outline" (click)="navigateToDemo()">
+          <i class="fas fa-eye"></i> Voir la démo
+        </button>
+      </div>
+      <div class="trust-badges">
+        <div class="badge">
+          <i class="fas fa-shield-alt"></i>
+          <span>Sécurité maximale</span>
+        </div>
+        <div class="badge">
+          <i class="fas fa-lock"></i>
+          <span>Données protégées</span>
+        </div>
+      </div>
+    </div>
+    <div class="illustration">
+      <img [src]="mainImagePath" 
+           alt="Exam Platform Illustration" 
+           class="main-image"
+           [class.loaded]="imageLoaded">
+      <div class="floating-elements" *ngIf="floatingElementsVisible">
+        <div class="floating-card card-1">
+          <i class="fas fa-check-circle"></i> Examens surveillés
+        </div>
+        <div class="floating-card card-3">
+          <i class="fas fa-certificate"></i> Limite de temps
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features Section -->
+  <div class="features-section" [class.visible]="isFeaturesVisible">
+    <h2 class="section-title">Pourquoi choisir notre plateforme ?</h2>
+    <p class="section-subtitle">Une solution complète pour tous vos besoins d'évaluation en ligne</p>
+    
+    <div class="features-grid">
+      <div class="feature" (click)="onFeatureClick('professor')">
+        <div class="feature-icon">
+          <i class="fas fa-chalkboard-teacher"></i>
+        </div>
+        <h3>Pour les Professeurs</h3>
+        <p>Créez et gérez facilement vos examens en ligne avec notre interface intuitive et nos modèles prédéfinis.</p>
+        <ul class="feature-list">
+          <li><i class="fas fa-check"></i> Banque de questions</li>
+          <li><i class="fas fa-check"></i> Correction automatique</li>
+          <li><i class="fas fa-check"></i> Statistiques détaillées</li>
+        </ul>
+      </div>
+      
+      <div class="feature" (click)="onFeatureClick('student')">
+        <div class="feature-icon">
+          <i class="fas fa-user-graduate"></i>
+        </div>
+        <h3>Pour les Étudiants</h3>
+        <p>Passez vos examens de manière simple et intuitive depuis n'importe quel appareil.</p>
+        <ul class="feature-list">
+          <li><i class="fas fa-check"></i> Interface responsive</li>
+          <li><i class="fas fa-check"></i> Sauvegarde automatique</li>
+          <li><i class="fas fa-check"></i> Feedback immédiat</li>
+        </ul>
+      </div>
+      
+      <div class="feature" (click)="onFeatureClick('results')">
+        <div class="feature-icon">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <h3>Résultats Instantanés</h3>
+        <p>Obtenez vos résultats immédiatement après l'examen avec analyse des performances.</p>
+        <ul class="feature-list">
+          <li><i class="fas fa-check"></i> Correction automatique</li>
+          <li><i class="fas fa-check"></i> Graphiques de performance</li>
+          <li><i class="fas fa-check"></i> Comparaison avec la classe</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Final CTA -->
+  <div class="final-cta" [class.visible]="isFinalCtaVisible">
+    <h2>Prêt à révolutionner vos évaluations ?</h2>
+    <p>Rejoignez des milliers d'éducateurs et d'étudiants qui utilisent déjà notre plateforme</p>
+    <button class="btn btn-primary btn-large" (click)="navigateToRegister()">
+      Commencer maintenant <i class="fas fa-arrow-right"></i>
+    </button>
+  </div>
+</div>

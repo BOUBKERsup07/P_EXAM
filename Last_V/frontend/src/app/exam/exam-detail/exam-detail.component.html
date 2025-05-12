@@ -1,0 +1,119 @@
+<div class="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
+  <div class="relative py-3 sm:max-w-xl sm:mx-auto">
+    <div class="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
+      <div class="max-w-md mx-auto">
+        <div class="divide-y divide-gray-200">
+          <div class="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
+            <!-- Message d'erreur -->
+            <div *ngIf="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+              <span class="block sm:inline">{{ errorMessage }}</span>
+            </div>
+
+            <!-- Formulaire de création d'examen -->
+            <form [formGroup]="examForm" (ngSubmit)="onSubmit()" class="space-y-6">
+              <div>
+                <label for="name" class="block text-sm font-medium text-gray-700">Titre de l'examen</label>
+                <input type="text" id="name" formControlName="name"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  placeholder="Entrez le titre de l'examen" title="Titre de l'examen">
+                <div *ngIf="examForm.get('name')?.invalid && examForm.get('name')?.touched" class="text-red-500 text-xs">
+                  Le titre est requis
+                </div>
+              </div>
+
+              <div>
+                <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+                <textarea id="description" formControlName="description" rows="3"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  placeholder="Entrez la description de l'examen" title="Description de l'examen"></textarea>
+              </div>
+
+              <!-- Liste des questions -->
+              <div formArrayName="questions">
+                <div *ngFor="let question of questions.controls; let i = index" [formGroupName]="i" class="border p-4 rounded-lg mb-4">
+                  <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-lg font-medium">Question {{i + 1}}</h3>
+                    <button type="button" (click)="removeQuestion(i)"
+                      class="text-red-600 hover:text-red-800">
+                      Supprimer
+                    </button>
+                  </div>
+
+                  <div class="space-y-4">
+                    <div>
+                      <label [for]="'text-' + i" class="block text-sm font-medium text-gray-700">Texte de la question</label>
+                      <input type="text" [id]="'text-' + i" formControlName="text"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        placeholder="Entrez la question" title="Texte de la question">
+                      <div *ngIf="questions.at(i).get('text')?.invalid && questions.at(i).get('text')?.touched" class="text-red-500 text-xs">
+                        Le texte de la question est requis
+                      </div>
+                    </div>
+
+                    <div>
+                      <label [for]="'type-' + i" class="block text-sm font-medium text-gray-700">Type de question</label>
+                      <select [id]="'type-' + i" formControlName="type"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        title="Type de question">
+                        <option value="MULTIPLE_CHOICE">Choix multiple</option>
+                        <option value="DIRECT_ANSWER">Réponse directe</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label [for]="'duration-' + i" class="block text-sm font-medium text-gray-700">Durée (secondes)</label>
+                      <input type="number" [id]="'duration-' + i" formControlName="duration"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        placeholder="Durée en secondes">
+                      <div *ngIf="questions.at(i).get('duration')?.invalid && questions.at(i).get('duration')?.touched" class="text-red-500 text-xs">
+                        Durée invalide (minimum 1 seconde)
+                      </div>
+                    </div>
+
+                    <!-- Choix multiples -->
+                    <div *ngIf="question.get('type')?.value === 'MULTIPLE_CHOICE'" formArrayName="choices">
+                      <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-medium text-gray-700">Réponses possibles</label>
+                        <button type="button" (click)="addChoice(i)"
+                          class="text-indigo-600 hover:text-indigo-800">
+                          Ajouter une réponse
+                        </button>
+                      </div>
+                      <div *ngFor="let choice of getChoices(i).controls; let j = index" [formGroupName]="j" class="flex items-center space-x-2">
+                        <input type="text" formControlName="text"
+                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          placeholder="Entrez une réponse" title="Texte de la réponse">
+                        <input type="checkbox" formControlName="isCorrect" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                        <button type="button" (click)="removeChoice(i, j)"
+                          class="ml-2 inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                          title="Supprimer cette réponse">
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div *ngIf="getChoices(i).length < 2" class="text-red-500 text-xs">
+                        Au moins 2 réponses sont nécessaires
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex justify-between">
+                <button type="button" (click)="addQuestion()"
+                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200">
+                  Ajouter une question
+                </button>
+                <button type="submit" [disabled]="!examForm.valid"
+                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400">
+                  {{ isEditMode ? 'Mettre à jour' : 'Créer' }} l'examen
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

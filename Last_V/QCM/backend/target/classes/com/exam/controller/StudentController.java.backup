@@ -1,0 +1,601 @@
+package com.exam.controller;
+
+import com.exam.model.*;
+import com.exam.repository.*;
+import com.exam.service.ExamService;
+import com.exam.payload.request.AccessCodeRequest;
+import com.exam.payload.request.StudentAnswerRequest;
+import com.exam.payload.request.StudentExamRequest;
+import com.exam.payload.response.ExamResponse;
+import com.exam.payload.response.StudentExamResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/student")
+public class StudentController {
+    @Autowired
+    private StudentRepository studentRepository;
+    @Autowired
+    private ExamRepository examRepository;
+    @Autowired
+    private QuestionRepository questionRepository;
+    @Autowired
+    private AnswerRepository answerRepository;
+    @Autowired
+    private StudentExamRepository studentExamRepository;
+    @Autowired
+    private StudentAnswerRepository studentAnswerRepository;
+    @Autowired
+    private ExamService examService;
+    @Autowired
+    private ExamResultRepository examResultRepository;
+    
+    @PostMapping("/exams/start")
+    public ResponseEntity<?> startExam(@RequestBody StudentExamRequest request) {
+        try {
+            // Get the authenticated student
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            Optional<Student> studentOpt = studentRepository.findByEmail(email);
+            
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Student not found");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // Find the exam
+            Optional<Exam> examOpt = examRepository.findById(request.getExamId());
+            if (!examOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Exam not found");
+            }
+            
+            Exam exam = examOpt.get();
+            
+            // Start or resume the exam
+            StudentExam studentExam = examService.startOrResumeExam(exam, student);
+            
+            return ResponseEntity.ok(new StudentExamResponse(studentExam.getId(), exam.getId(), exam.getTitle(), studentExam.getStartTime()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    @PostMapping("/answers")
+    public ResponseEntity<?> submitAnswer(@RequestBody StudentAnswerRequest request) {
+        try {
+            // Validate the request
+            if (request.getStudentExamId() == null || request.getQuestionId() == null) {
+                return ResponseEntity.badRequest().body("Missing required fields");
+            }
+            
+            // Get the question to determine its type
+            Optional<Question> questionOpt = questionRepository.findById(request.getQuestionId());
+            if (!questionOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Question not found");
+            }
+            
+            Question question = questionOpt.get();
+            
+            // Submit the answer based on the question type
+            StudentAnswer studentAnswer;
+            if (question.getType() == Question.QuestionType.MULTIPLE_CHOICE) {
+                if (request.getSelectedAnswerId() == null) {
+                    return ResponseEntity.badRequest().body("Selected answer ID is required for multiple choice questions");
+                }
+                studentAnswer = examService.submitAnswer(request.getStudentExamId(), request.getQuestionId(), request.getSelectedAnswerId(), null);
+            } else {
+                if (request.getAnswerText() == null) {
+                    return ResponseEntity.badRequest().body("Answer text is required for direct answer questions");
+                }
+                studentAnswer = examService.submitAnswer(request.getStudentExamId(), request.getQuestionId(), null, request.getAnswerText());
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "id", studentAnswer.getId(),
+                "isCorrect", studentAnswer.getIsCorrect()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    @GetMapping("/exams/{studentExamId}/score")
+    public ResponseEntity<?> getExamScore(@PathVariable Long studentExamId) {
+        Optional<StudentExam> studentExamOpt = studentExamRepository.findById(studentExamId);
+        if (!studentExamOpt.isPresent()) {
+            return ResponseEntity.badRequest().body("Student exam not found");
+        }
+        
+        return ResponseEntity.ok(Map.of("score", studentExamOpt.get().getScore()));
+    }
+    
+    @GetMapping("/exams/{examId}")
+    public ResponseEntity<?> getExamForStudent(@PathVariable Long examId) {
+        try {
+            // Get the authenticated student
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            Optional<Student> studentOpt = studentRepository.findByEmail(email);
+            
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Student not found");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // Find the exam
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Exam not found");
+            }
+            
+            Exam exam = examOpt.get();
+            
+            // Check if the student is allowed to take this exam
+            // This could involve checking if the exam is published, if the student is enrolled in the course, etc.
+            
+            // Convert to ExamResponse
+            ExamResponse examResponse = new ExamResponse(exam);
+            
+            // Find or create a student exam record
+            StudentExam studentExam = examService.startOrResumeExam(exam, student);
+            examResponse.setStudentExamId(studentExam.getId());
+            
+            return ResponseEntity.ok(examResponse);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    @PostMapping("/exams/access")
+    public ResponseEntity<?> accessExamByCode(@RequestBody AccessCodeRequest request) {
+        try {
+            // Validate the request
+            if (request.getAccessCode() == null || request.getAccessCode().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Access code is required");
+            }
+            
+            // Get the authenticated student
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            Optional<Student> studentOpt = studentRepository.findByEmail(email);
+            
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Student not found");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // Find the exam by access code
+            Optional<Exam> examOpt = examService.getExamByAccessCode(request.getAccessCode());
+            if (!examOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Invalid access code");
+            }
+            
+            Exam exam = examOpt.get();
+            
+            // Check if the exam is active
+            if (!exam.getIsActive()) {
+                return ResponseEntity.badRequest().body("This exam is not currently active");
+            }
+            
+            // Check if the exam has a start date and if it's in the future
+            if (exam.getStartDate() != null && exam.getStartDate().isAfter(LocalDateTime.now())) {
+                return ResponseEntity.badRequest().body("This exam has not started yet");
+            }
+            
+            // Check if the exam has an end date and if it's in the past
+            if (exam.getEndDate() != null && exam.getEndDate().isBefore(LocalDateTime.now())) {
+                return ResponseEntity.badRequest().body("This exam has already ended");
+            }
+            
+            // Check if the student has already taken this exam
+            List<StudentExam> previousAttempts = studentExamRepository.findByStudentAndExam(student, exam);
+            if (!previousAttempts.isEmpty()) {
+                // Check if any of the attempts are completed
+                boolean hasCompletedAttempt = previousAttempts.stream()
+                        .anyMatch(se -> se.getEndTime() != null);
+                
+                if (hasCompletedAttempt) {
+                    return ResponseEntity.badRequest().body("You have already completed this exam");
+                }
+                
+                // If there's an incomplete attempt, allow the student to resume
+                StudentExam incompleteAttempt = previousAttempts.stream()
+                        .filter(se -> se.getEndTime() == null)
+                        .findFirst()
+                        .orElse(null);
+                
+                if (incompleteAttempt != null) {
+                    // Return the exam with the student exam ID for resuming
+                    ExamResponse examResponse = new ExamResponse(exam);
+                    examResponse.setStudentExamId(incompleteAttempt.getId());
+                    
+                    return ResponseEntity.ok(examResponse);
+                }
+            }
+            
+            // Start a new exam attempt
+            StudentExam studentExam = examService.startOrResumeExam(exam, student);
+            
+            // Convert to ExamResponse
+            ExamResponse examResponse = new ExamResponse(exam);
+            examResponse.setStudentExamId(studentExam.getId());
+            
+            return ResponseEntity.ok(examResponse);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    @PostMapping("/exams/{examId}/submit")
+    public ResponseEntity<?> submitExam(@PathVariable Long examId, @RequestBody List<Map<String, Object>> answers) {
+        try {
+            // Get the authenticated student
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            Optional<Student> studentOpt = studentRepository.findByEmail(email);
+            
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Student not found");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // Find the exam
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Exam not found");
+            }
+            
+            Exam exam = examOpt.get();
+            
+            // Submit the exam with answers
+            ExamResult result = examService.submitExamWithAnswers(exam, student, answers);
+            
+            return ResponseEntity.ok(Map.of("score", result.getScore()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    @PostMapping("/exams/submit")
+    public ResponseEntity<?> submitExam(@RequestBody Map<String, Object> request) {
+        try {
+            // Extract the exam ID and student exam ID from the request
+            Long examId = Long.parseLong(request.get("examId").toString());
+            Long studentExamId = Long.parseLong(request.get("studentExamId").toString());
+            
+            // Get the authenticated student
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            Optional<Student> studentOpt = studentRepository.findByEmail(email);
+            
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Student not found");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // Find the exam
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Exam not found");
+            }
+            
+            Exam exam = examOpt.get();
+            
+            // Find the student exam
+            Optional<StudentExam> studentExamOpt = studentExamRepository.findById(studentExamId);
+            if (!studentExamOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Student exam not found");
+            }
+            
+            StudentExam studentExam = studentExamOpt.get();
+            
+            // Check if this student exam belongs to the authenticated student
+            if (!studentExam.getStudent().getId().equals(student.getId())) {
+                return ResponseEntity.badRequest().body("Unauthorized");
+            }
+            
+            // Mark the exam as completed
+            studentExam.setEndTime(LocalDateTime.now());
+            studentExam = studentExamRepository.save(studentExam);
+            
+            // Calculate the score
+            examService.updateStudentExamScore(studentExam);
+            
+            // Create or update the exam result
+            ExamResult result = new ExamResult();
+            result.setExam(exam);
+            result.setStudent(student);
+            result.setScore(studentExam.getScore());
+            result.setSubmissionDate(LocalDateTime.now());
+            result = examResultRepository.save(result);
+            
+            return ResponseEntity.ok(Map.of("score", result.getScore()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    @GetMapping("/exams/{examId}/result")
+    public ResponseEntity<?> getExamResult(@PathVariable Long examId) {
+        try {
+            // Get the authenticated student
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            Optional<Student> studentOpt = studentRepository.findByEmail(email);
+            
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Student not found");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // Find the exam
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Exam not found");
+            }
+            
+            Exam exam = examOpt.get();
+            
+            // Find the exam result
+            Optional<ExamResult> resultOpt = examResultRepository.findByStudentAndExam(student, exam);
+            if (!resultOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Exam result not found");
+            }
+            
+            ExamResult result = resultOpt.get();
+            
+            // Find the student exam record
+            List<StudentExam> studentExams = studentExamRepository.findByStudentAndExam(student, exam);
+            if (studentExams.isEmpty()) {
+                throw new RuntimeException("Student exam record not found");
+            }
+            
+            // Prendre l'enregistrement le plus récent
+            StudentExam studentExam = studentExams.get(0);
+            List<StudentAnswer> studentAnswers = studentAnswerRepository.findByStudentExam(studentExam);
+            
+            // Transform the result to include more details
+            Map<String, Object> resultMap = new HashMap<>();
+            resultMap.put("id", result.getId());
+            resultMap.put("examId", exam.getId());
+            resultMap.put("examName", exam.getTitle());
+            resultMap.put("score", result.getScore());
+            resultMap.put("timeSpent", studentExam.getEndTime() != null && studentExam.getStartTime() != null ?
+                    java.time.Duration.between(studentExam.getStartTime(), studentExam.getEndTime()).toMinutes() : 0);
+            resultMap.put("submissionDate", result.getSubmissionDate().toString());
+            resultMap.put("formattedDate", result.getSubmissionDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+            
+            // Add answers details
+            List<Map<String, Object>> answersDetails = new ArrayList<>();
+            for (StudentAnswer answer : studentAnswers) {
+                Map<String, Object> answerMap = new HashMap<>();
+                Question question = answer.getQuestion();
+                
+                answerMap.put("questionId", question.getId());
+                answerMap.put("questionText", question.getText());
+                answerMap.put("questionType", question.getType().toString());
+                
+                // Pour les réponses à choix multiples, récupérer le texte de la réponse au lieu de l'ID
+                String studentAnswerText = answer.getAnswerText();
+                if (question.getType() == Question.QuestionType.MULTIPLE_CHOICE) {
+                    try {
+                        // Essayer de parser l'ID de la réponse
+                        Long answerId = Long.parseLong(studentAnswerText);
+                        // Trouver la réponse correspondante pour obtenir son texte
+                        Optional<Answer> selectedAnswer = question.getAnswers().stream()
+                                .filter(a -> a.getId().equals(answerId))
+                                .findFirst();
+                        
+                        if (selectedAnswer.isPresent()) {
+                            studentAnswerText = selectedAnswer.get().getText();
+                        }
+                    } catch (NumberFormatException e) {
+                        // Si ce n'est pas un ID numérique, utiliser le texte tel quel
+                    }
+                }
+                
+                answerMap.put("studentAnswer", studentAnswerText);
+                answerMap.put("isCorrect", answer.getIsCorrect());
+                
+                // Find correct answer for this question
+                if (question.getType() == Question.QuestionType.MULTIPLE_CHOICE) {
+                    Optional<Answer> correctAnswer = question.getAnswers().stream()
+                            .filter(Answer::getIsCorrect)
+                            .findFirst();
+                    
+                    if (correctAnswer.isPresent()) {
+                        answerMap.put("correctAnswer", correctAnswer.get().getText());
+                    }
+                } else if (question.getType() == Question.QuestionType.DIRECT_ANSWER) {
+                    // Pour les questions à réponse directe, la première réponse est toujours la réponse correcte
+                    if (!question.getAnswers().isEmpty()) {
+                        Answer directAnswer = question.getAnswers().get(0);
+                        answerMap.put("correctAnswer", directAnswer.getText());
+                        
+                        // Ajouter les mots-clés s'ils existent
+                        if (directAnswer.getKeywords() != null && !directAnswer.getKeywords().trim().isEmpty()) {
+                            answerMap.put("keywords", directAnswer.getKeywords());
+                            System.out.println("Mots-clés envoyés dans la réponse: " + directAnswer.getKeywords());
+                        } else {
+                            answerMap.put("keywords", "");
+                            System.out.println("Aucun mot-clé défini pour cette question");
+                        }
+                    }
+                }
+                
+                answersDetails.add(answerMap);
+            }
+            
+            resultMap.put("answers", answersDetails);
+            
+            return ResponseEntity.ok(resultMap);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Error fetching exam result: " + e.getMessage());
+        }
+    }
+    
+    @GetMapping("/results")
+    public ResponseEntity<?> getStudentResults() {
+        try {
+            // Get the authenticated student
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            Optional<Student> studentOpt = studentRepository.findByEmail(email);
+            
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.badRequest().body("Student not found");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // Get all exam results for the student
+            List<ExamResult> allResults = examResultRepository.findByStudent(student);
+            
+            // Group results by exam and keep only the most recent one for each exam
+            Map<Long, ExamResult> latestResultsByExam = new HashMap<>();
+            
+            for (ExamResult result : allResults) {
+                Long examId = result.getExam().getId();
+                
+                // If we haven't seen this exam before, or if this result is more recent
+                if (!latestResultsByExam.containsKey(examId) || 
+                    result.getSubmissionDate().isAfter(latestResultsByExam.get(examId).getSubmissionDate())) {
+                    latestResultsByExam.put(examId, result);
+                }
+            }
+            
+            // Transform the results to include more details
+            List<Map<String, Object>> transformedResults = new ArrayList<>();
+            for (ExamResult result : latestResultsByExam.values()) {
+                Map<String, Object> resultMap = new HashMap<>();
+                resultMap.put("id", result.getId());
+                resultMap.put("examId", result.getExam().getId());
+                resultMap.put("examName", result.getExam().getTitle());
+                resultMap.put("score", result.getScore());
+                resultMap.put("submissionDate", result.getSubmissionDate().toString());
+                resultMap.put("formattedDate", result.getSubmissionDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+                
+                transformedResults.add(resultMap);
+            }
+            
+            return ResponseEntity.ok(transformedResults);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error fetching results: " + e.getMessage());
+        }
+    }
+    
+    private void updateStudentExamScore(StudentExam studentExam) {
+        // Get all answers for this student exam
+        List<StudentAnswer> answers = studentAnswerRepository.findByStudentExam(studentExam);
+        
+        // Count correct answers
+        long correctAnswers = answers.stream().filter(StudentAnswer::getIsCorrect).count();
+        
+        // Calculate score as a percentage
+        int totalQuestions = answers.size();
+        double score = totalQuestions > 0 ? (double) correctAnswers / totalQuestions * 100 : 0;
+        
+        // Update the student exam
+        studentExam.setScore(score);
+        studentExamRepository.save(studentExam);
+    }
+    
+    @PostMapping("/exams/check-access")
+    public ResponseEntity<?> checkExamAccess(@RequestBody AccessCodeRequest request) {
+        try {
+            // Find the exam by access code using the service
+            Optional<Exam> examOpt = examService.getExamByAccessCode(request.getAccessCode());
+            if (!examOpt.isPresent()) {
+                return ResponseEntity.ok(Map.of("valid", false, "message", "Invalid access code"));
+            }
+            
+            Exam exam = examOpt.get();
+            
+            // Check if the exam is active
+            if (!exam.getIsActive()) {
+                return ResponseEntity.ok(Map.of("valid", false, "message", "This exam is not currently active"));
+            }
+            
+            // Check if the exam has a start date and if it's in the future
+            if (exam.getStartDate() != null && exam.getStartDate().isAfter(LocalDateTime.now())) {
+                return ResponseEntity.ok(Map.of(
+                    "valid", false, 
+                    "message", "This exam will start on " + exam.getStartDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+                ));
+            }
+            
+            // Check if the exam has an end date and if it's in the past
+            if (exam.getEndDate() != null && exam.getEndDate().isBefore(LocalDateTime.now())) {
+                return ResponseEntity.ok(Map.of(
+                    "valid", false, 
+                    "message", "This exam ended on " + exam.getEndDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+                ));
+            }
+            
+            // Get the authenticated student
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            Optional<Student> studentOpt = studentRepository.findByEmail(email);
+            
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.ok(Map.of("valid", false, "message", "Student not found"));
+            }
+            
+            Student student = studentOpt.get();
+            
+            // Check if the student has already taken this exam
+            List<StudentExam> previousAttempts = studentExamRepository.findByStudentAndExam(student, exam);
+            if (!previousAttempts.isEmpty()) {
+                // Check if any of the attempts are completed
+                boolean hasCompletedAttempt = previousAttempts.stream()
+                        .anyMatch(se -> se.getEndTime() != null);
+                
+                if (hasCompletedAttempt) {
+                    return ResponseEntity.ok(Map.of("valid", false, "message", "You have already completed this exam"));
+                }
+                
+                // If there's an incomplete attempt, allow the student to resume
+                StudentExam incompleteAttempt = previousAttempts.stream()
+                        .filter(se -> se.getEndTime() == null)
+                        .findFirst()
+                        .orElse(null);
+                
+                if (incompleteAttempt != null) {
+                    return ResponseEntity.ok(Map.of(
+                        "valid", true,
+                        "examId", exam.getId(),
+                        "examName", exam.getTitle(),
+                        "resuming", true,
+                        "studentExamId", incompleteAttempt.getId()
+                    ));
+                }
+            }
+            
+            // All checks passed, the student can take the exam
+            return ResponseEntity.ok(Map.of(
+                "valid", true,
+                "examId", exam.getId(),
+                "examName", exam.getTitle(),
+                "resuming", false
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error checking access: " + e.getMessage());
+        }
+    }
+}

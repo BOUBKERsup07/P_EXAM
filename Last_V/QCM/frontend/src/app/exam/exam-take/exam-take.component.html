@@ -1,0 +1,297 @@
+<div class="min-h-screen bg-gray-50">
+  <!-- Header avec progression -->
+  <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 px-4 shadow-md">
+    <div class="container mx-auto">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0">
+          <h2 class="text-2xl font-bold">{{ exam?.name || 'Examen' }}</h2>
+          <p class="text-sm opacity-90" *ngIf="exam?.description">{{ exam?.description }}</p>
+        </div>
+        <div class="flex items-center space-x-4">
+          <!-- Mode plein écran -->
+          <button class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition" (click)="toggleFullscreen()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path *ngIf="!isFullscreen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+              <path *ngIf="isFullscreen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          
+          <!-- Progression -->
+          <div class="flex items-center space-x-3" *ngIf="!loading && !error && !examCompleted && currentQuestion">
+            <div class="bg-white/20 px-3 py-1.5 rounded-full flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="text-sm font-medium">{{ currentQuestionIndex + 1 }} / {{ exam?.questions?.length || 0 }}</span>
+            </div>
+            <div class="bg-white/20 px-3 py-1.5 rounded-full flex items-center" 
+                 [ngClass]="{'bg-red-500/70': timeLeft < 30, 'bg-yellow-500/70': timeLeft >= 30 && timeLeft < 60}">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="text-sm font-medium">{{ timeLeft }}s</span>
+            </div>
+            
+            <!-- Indicateur de questions non répondues -->
+            <div *ngIf="unansweredQuestions.length > 0" class="bg-yellow-500/70 px-3 py-1.5 rounded-full flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span class="text-sm font-medium">{{ unansweredQuestions.length }} non répondue(s)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mx-auto px-4 py-8">
+    <!-- État de chargement -->
+    <div *ngIf="loading" class="text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600 mb-4"></div>
+      <p class="text-gray-600">Chargement de l'examen...</p>
+    </div>
+
+    <!-- Message d'erreur -->
+    <div *ngIf="error" class="bg-red-50 border-l-4 border-red-500 p-4 rounded-md mb-6">
+      <div class="flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <p class="text-red-700">{{ error }}</p>
+      </div>
+    </div>
+
+    <!-- Contenu de l'examen -->
+    <div *ngIf="!loading && !error && !examCompleted && currentQuestion" class="bg-white rounded-lg shadow-md overflow-hidden max-w-4xl mx-auto">
+      <!-- Barre de progression -->
+      <div class="relative h-1 bg-gray-200">
+        <div class="absolute top-0 left-0 h-1 bg-indigo-600 transition-all duration-300" 
+          [style.width]="((currentQuestionIndex + 1) / (exam?.questions?.length || 1)) * 100 + '%'">
+        </div>
+      </div>
+      
+      <!-- Navigation entre les questions -->
+      <div class="flex flex-wrap gap-2 p-3 bg-gray-50 border-b border-gray-200">
+        <ng-container *ngIf="exam?.questions">
+          <button *ngFor="let question of exam?.questions; let i = index"
+                  (click)="goToQuestion(i)"
+                  class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all"
+                  [ngClass]="{
+                    'bg-indigo-600 text-white': i === currentQuestionIndex,
+                    'bg-green-100 text-green-800 border border-green-300': question.id && selectedAnswers[question.id] && i !== currentQuestionIndex,
+                    'bg-yellow-100 text-yellow-800 border border-yellow-300': question.id && !selectedAnswers[question.id] && i !== currentQuestionIndex
+                  }">
+            {{ i + 1 }}
+          </button>
+        </ng-container>
+      </div>
+
+      <div class="p-6">
+        <!-- Texte de la question -->
+        <h3 class="text-xl font-semibold text-gray-800 mb-4">{{ currentQuestion.text }}</h3>
+        
+        <!-- Image de la question (si disponible) -->
+        <div class="mb-6">
+          <ng-container *ngIf="currentQuestion.imageUrl">
+            <div class="rounded-lg overflow-hidden shadow-sm max-w-2xl mx-auto">
+              <img [src]="currentQuestion.imageUrl" alt="Image de la question" class="w-full h-auto object-cover" 
+                style="max-height: 300px;">
+            </div>
+          </ng-container>
+          <div *ngIf="!currentQuestion.imageUrl && false" class="bg-blue-50 text-blue-700 p-4 rounded-md flex items-start">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p>Aucune image n'a été fournie pour cette question.</p>
+          </div>
+        </div>
+
+        <!-- Questions à choix multiples -->
+        <div *ngIf="currentQuestion.type === 'MULTIPLE_CHOICE'" class="mb-8 space-y-3">
+          <div class="text-sm font-medium text-gray-500 mb-2">Sélectionnez une réponse:</div>
+          <div class="space-y-2">
+            <label *ngFor="let answer of currentQuestion.answers; let i = index" 
+              class="flex items-center p-4 border rounded-lg cursor-pointer transition-all"
+              [ngClass]="{
+                'border-indigo-600 bg-indigo-50': selectedAnswers[currentQuestion.id || 0] === answer.id.toString(),
+                'border-gray-200 hover:border-indigo-200 hover:bg-gray-50': selectedAnswers[currentQuestion.id || 0] !== answer.id.toString()
+              }">
+              <input type="radio" 
+                [id]="'choice-' + i" 
+                [name]="'question-' + currentQuestion.id"
+                [value]="answer.id" 
+                [(ngModel)]="selectedAnswers[currentQuestion.id || 0]"
+                class="h-4 w-4 text-indigo-600 border-gray-300 mr-3">
+              <span class="text-gray-800">{{ answer.text }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Questions à réponse directe -->
+        <div *ngIf="currentQuestion.type === 'DIRECT_ANSWER'" class="mb-8">
+          <div class="text-sm font-medium text-gray-500 mb-2">Entrez votre réponse:</div>
+          <div class="relative">
+            <input type="text" 
+              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" 
+              id="directAnswer"
+              placeholder="Votre réponse"
+              [(ngModel)]="selectedAnswers[currentQuestion.id || 0]">
+          </div>
+        </div>
+
+        <!-- Boutons de navigation -->
+        <div class="flex justify-between mt-8">
+          <button *ngIf="!isFirstQuestion" (click)="previousQuestion()" 
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Question précédente
+          </button>
+          <div *ngIf="isFirstQuestion"></div>
+          
+          <button (click)="isLastQuestion ? submitExam() : nextQuestion()" 
+            class="px-4 py-2 rounded-md text-white flex items-center" 
+            [ngClass]="isLastQuestion ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'">
+            {{ isLastQuestion ? 'Terminer l\'examen' : 'Question suivante' }}
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path *ngIf="!isLastQuestion" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              <path *ngIf="isLastQuestion" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Résultats de l'examen -->
+    <div *ngIf="examCompleted && examResult" class="max-w-5xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+      <!-- En-tête des résultats -->
+      <div class="px-6 py-4" 
+           [ngClass]="{
+             'bg-gradient-to-r from-green-600 to-green-500': examResult.score >= 70, 
+             'bg-gradient-to-r from-yellow-600 to-yellow-500': examResult.score >= 50 && examResult.score < 70, 
+             'bg-gradient-to-r from-red-600 to-red-500': examResult.score < 50
+           }">
+        <div class="flex justify-between items-center text-white">
+          <div class="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-xl font-bold">Examen terminé !</h3>
+          </div>
+          <div class="bg-white text-gray-800 text-xl font-bold px-4 py-2 rounded-full">
+            {{ examResult.score }}%
+          </div>
+        </div>
+      </div>
+      
+      <div class="p-6">
+        <!-- Résumé visuel -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <!-- Score -->
+          <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-6 text-center">
+              <div class="inline-flex p-4 rounded-full bg-indigo-100 text-indigo-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h2 class="text-3xl font-bold mb-1">{{ examResult.score }}%</h2>
+              <p class="text-gray-500 text-sm">Score final</p>
+              
+              <!-- Barre de progression -->
+              <div class="mt-4 h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                <div class="h-full rounded-full" 
+                     [ngClass]="{
+                       'bg-green-500': examResult.score >= 70, 
+                       'bg-yellow-500': examResult.score >= 50 && examResult.score < 70, 
+                       'bg-red-500': examResult.score < 50
+                     }" 
+                     [style.width.%]="examResult.score"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Heure de fin -->
+          <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-6 text-center">
+              <div class="inline-flex p-4 rounded-full bg-blue-100 text-blue-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 class="text-xl font-bold mb-1">{{ examResult.formattedEndTime || (examResult.endTime | date:'dd/MM/yyyy HH:mm') }}</h2>
+              <p class="text-gray-500 text-sm">Heure de fin</p>
+            </div>
+          </div>
+          
+          <!-- Réponses correctes -->
+          <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-6 text-center">
+              <div class="inline-flex p-4 rounded-full bg-green-100 text-green-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 class="text-3xl font-bold mb-1">{{ getCorrectAnswersCount() }} / {{ exam?.questions?.length || 0 }}</h2>
+              <p class="text-gray-500 text-sm">Réponses correctes</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Détails des réponses -->
+        <div class="mb-6">
+          <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            Détails des réponses
+          </h4>
+          
+          <div class="overflow-x-auto bg-white rounded-lg border border-gray-200">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center w-12">#</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Question</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Votre réponse</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center w-24">Résultat</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <tr *ngFor="let answer of examResult.answers; let i = index" 
+                    [ngClass]="{'bg-green-50': answer.isCorrect, 'bg-red-50': !answer.isCorrect}">
+                  <td class="px-6 py-4 whitespace-nowrap text-center font-medium">{{ i + 1 }}</td>
+                  <td class="px-6 py-4">{{ answer.questionText || ('Question ' + answer.questionId) }}</td>
+                  <td class="px-6 py-4">{{ getAnswerText(answer) }}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" 
+                          [ngClass]="answer.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path *ngIf="answer.isCorrect" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        <path *ngIf="!answer.isCorrect" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      {{ answer.isCorrect ? 'Correct' : 'Incorrect' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Bouton de retour -->
+        <div class="flex justify-center mt-8">
+          <button (click)="navigateToDashboard()" 
+                  class="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Retour au tableau de bord
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

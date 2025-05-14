@@ -1,0 +1,23 @@
+<div class="container mt-4">
+  <h2 class="mb-4">Student Dashboard</h2>
+
+  <!-- Available Exams -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h4>Enter Exam Code</h4>
+  </div>
+  <div class="card-body">
+    <form (ngSubmit)="onSubmitExamCode()">
+      <div class="mb-3">
+        <label for="examCode" class="form-label">Exam Code</label>
+        <input type="text" id="examCode" class="form-control" [(ngModel)]="examCode" name="examCode" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Start Exam</button>
+    </form>
+
+    <div *ngIf="examError" class="alert alert-danger mt-3">
+      {{ examError }}
+    </div>
+  </div>
+</div>
+</div> 

@@ -1,0 +1,155 @@
+<div class="container mt-4">
+  <div class="card">
+    <div class="card-header">
+      <h2>{{ isEditMode ? 'Modifier l\'examen' : 'Créer un nouvel examen' }}</h2>
+    </div>
+    <div class="card-body">
+      <form [formGroup]="examForm" (ngSubmit)="onSubmit()">
+        <!-- Informations de base de l'examen -->
+        <div class="mb-3">
+          <label for="name" class="form-label">Nom de l'examen*</label>
+          <input type="text" class="form-control" id="name" formControlName="name" required>
+          <div *ngIf="examForm.get('name')?.invalid && (examForm.get('name')?.touched || examForm.get('name')?.dirty)" class="text-danger mt-1">
+            Le nom de l'examen est obligatoire
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="description" class="form-label">Description</label>
+          <textarea class="form-control" id="description" formControlName="description" rows="3"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="duration" class="form-label">Durée globale de l'examen (en minutes)</label>
+          <div class="input-group">
+            <input type="number" class="form-control" id="duration" formControlName="durationInMinutes" min="0">
+            <button type="button" class="btn btn-outline-secondary" (click)="toggleDurationMode()">
+              {{ useDurationPerQuestion ? 'Utiliser durée globale' : 'Utiliser durée par question' }}
+            </button>
+          </div>
+          
+          <!-- Texte d'aide pour le mode de durée -->
+          <div class="mt-2 p-2 rounded" [ngClass]="{'bg-blue-50': useDurationPerQuestion, 'bg-indigo-50': !useDurationPerQuestion}">
+            <div *ngIf="useDurationPerQuestion" class="text-primary">
+              <strong>Mode actuel: Durée par question</strong>
+              <p class="small mb-0">Chaque question aura sa propre limite de temps définie ci-dessous. La durée globale sera ignorée.</p>
+            </div>
+            <div *ngIf="!useDurationPerQuestion" class="text-primary">
+              <strong>Mode actuel: Durée globale</strong>
+              <p class="small mb-0">L'examen aura une limite de temps totale. Les temps limites individuels des questions seront ignorés.</p>
+            </div>
+          </div>
+          
+          <div *ngIf="!useDurationPerQuestion && examForm.get('durationInMinutes')?.invalid && (examForm.get('durationInMinutes')?.touched || examForm.get('durationInMinutes')?.dirty)" class="text-danger mt-1">
+            La durée doit être supérieure à 0 en mode durée globale
+          </div>
+        </div>
+
+        <!-- Liste des questions -->
+        <div formArrayName="questions" class="mb-4">
+          <h3>Questions</h3>
+          <div *ngFor="let question of questions.controls; let i = index" [formGroupName]="i" class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h4>Question {{i + 1}}</h4>
+              <button type="button" class="btn btn-danger btn-sm" (click)="removeQuestion(i)">Supprimer</button>
+            </div>
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-md-8">
+                  <div class="form-group">
+                    <label [for]="'text-' + i" class="form-label">Texte de la question*</label>
+                    <input type="text" [id]="'text-' + i" formControlName="text" class="form-control"
+                      placeholder="Ex: Quelle est la dérivée de ln(x)?" required>
+                    <div *ngIf="question.get('text')?.invalid && (question.get('text')?.touched || question.get('text')?.dirty)" class="text-danger mt-1">
+                      Le texte de la question est obligatoire
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-group">
+                    <label [for]="'type-' + i" class="form-label">Type de question*</label>
+                    <select [id]="'type-' + i" formControlName="type" class="form-select" required title="Type de question">
+                      <option value="DIRECT_ANSWER">Réponse directe</option>
+                      <option value="MULTIPLE_CHOICE">Choix multiple (QCM)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <div class="form-group">
+                    <label [for]="'timeLimit-' + i" class="form-label">Temps limite (secondes)*</label>
+                    <input type="number" [id]="'timeLimit-' + i" formControlName="timeLimit" class="form-control" required min="1">
+                    <div *ngIf="question.get('timeLimit')?.invalid && (question.get('timeLimit')?.touched || question.get('timeLimit')?.dirty)" class="text-danger mt-1">
+                      Le temps limite doit être supérieur à 0
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Réponses pour les questions à choix multiples -->
+              <div *ngIf="question.get('type')?.value === 'MULTIPLE_CHOICE'" formArrayName="answers" class="mb-3">
+                <h5>Options de réponse</h5>
+                <div *ngFor="let answer of getAnswers(i).controls; let j = index" [formGroupName]="j" class="row mb-2">
+                  <div class="col-md-10">
+                    <input type="text" formControlName="text" class="form-control" placeholder="Option de réponse" required>
+                    <div *ngIf="answer.get('text')?.invalid && (answer.get('text')?.touched || answer.get('text')?.dirty)" class="text-danger mt-1">
+                      Le texte de l'option est obligatoire
+                    </div>
+                  </div>
+                  <div class="col-md-1">
+                    <div class="form-check">
+                      <input type="checkbox" formControlName="isCorrect" class="form-check-input" title="Réponse correcte">
+                      <label class="form-check-label">Correcte</label>
+                    </div>
+                  </div>
+                  <div class="col-md-1">
+                    <button type="button" class="btn btn-danger btn-sm" (click)="removeAnswer(i, j)">×</button>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="addAnswer(i)">Ajouter une option</button>
+                <div *ngIf="question.get('answers')?.invalid && (question.get('answers')?.touched || question.get('answers')?.dirty)" class="text-danger mt-2">
+                  Au moins une option de réponse est requise pour les QCM
+                </div>
+              </div>
+
+              <!-- Réponse pour les questions à réponse directe -->
+              <div *ngIf="question.get('type')?.value === 'DIRECT_ANSWER'" class="mb-3">
+                <div class="form-group">
+                  <label [for]="'correctAnswer-' + i" class="form-label">Réponse correcte*</label>
+                  <input type="text" [id]="'correctAnswer-' + i" formControlName="correctAnswer" class="form-control"
+                    placeholder="Entrez la réponse correcte" required>
+                  <div *ngIf="question.get('correctAnswer')?.invalid && (question.get('correctAnswer')?.touched || question.get('correctAnswer')?.dirty)" class="text-danger mt-1">
+                    La réponse correcte est obligatoire
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" (click)="addQuestion()">Ajouter une question</button>
+          <div *ngIf="questions.length === 0" class="text-danger mt-2">
+            Au moins une question est requise
+          </div>
+        </div>
+
+        <!-- Boutons de soumission -->
+        <div class="d-flex justify-content-end gap-2">
+          <!-- Bouton de création rapide pour réponse directe -->
+          <button 
+            *ngIf="showCreateButton" 
+            type="button" 
+            class="btn btn-success" 
+            (click)="onCreate()">
+            Créer avec réponse directe
+          </button>
+
+          <button type="button" class="btn btn-secondary" (click)="onCancel()">Annuler</button>
+          <button type="submit" class="btn btn-primary" [disabled]="!examForm.valid || !areAllQuestionsValid()">
+            {{ isEditMode ? 'Mettre à jour' : 'Créer' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
